@@ -1,0 +1,190 @@
+<script setup>
+import { ref, watch } from 'vue'
+import { useAppStore } from '@/stores/useAppStore'
+
+const store = useAppStore()
+const prompt = ref(store.prompt)
+const responseMessage = ref('')
+const chunks = ref([])
+const chunksDisplayed = ref(false)
+const prevModel = ref('')
+const prevPrompt = ref('')
+
+watch(prompt, (newValue) => {
+  store.setPrompt(newValue)
+})
+
+const handleRagRequest = () => {
+  if (prompt.value === '') {
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('json', store.toJson())
+
+  if (store.getFile()) {
+    formData.append('file', store.getFile())
+  }
+
+  const baseUrl = import.meta.env.VITE_BACKEND_URL
+
+  fetch(baseUrl + '/dummyLlama', {
+    method: 'POST',
+    body: formData
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Non 200 status code! ${response.status}`)
+      }
+      return response.json()
+    })
+    .then((data) => {
+      prevModel.value = store.getModel()
+      prevPrompt.value = store.getPrompt()
+
+      responseMessage.value = data.response
+      chunks.value = data.chunks
+
+      prompt.value = ''
+    })
+    .catch(() => {
+      console.log(`Error from RAG.`)
+      responseMessage.value = 'An error occured while processing request, please try again.'
+    })
+}
+
+const flipChunksDisplayed = () => {
+  chunksDisplayed.value = !chunksDisplayed.value
+}
+</script>
+
+<template>
+  <div class="chat-screen">
+    <div class="response-area">
+      <div v-if="responseMessage !== ''" class="">
+        <div class="user-promptContainer">
+          <div class="user-prompt">
+            {{ prevPrompt }}
+          </div>
+        </div>
+
+        <h3>
+          {{ prevModel }} -
+          <a @click="flipChunksDisplayed">
+            <span v-if="!chunksDisplayed">View Chunks</span>
+            <span v-else>Close Chunks</span>
+          </a>
+        </h3>
+
+        <div v-if="chunksDisplayed && chunks !== null && chunks.length > 0" class="ChunkDisplay">
+          <ol class="chunk-list">
+            <li v-for="chunk in chunks" :key="chunk">{{ chunk }}</li>
+          </ol>
+        </div>
+
+        {{ responseMessage }}
+      </div>
+    </div>
+    <div class="prompt-area">
+      <textarea
+        v-model="prompt"
+        @keydown.enter.prevent="handleRagRequest"
+        placeholder="Enter a prompt here"
+        id="TextArea"
+      ></textarea>
+
+      <div class="submit-container">
+        <button @click="handleRagRequest" id="SubmitButton">
+          <img src="@/assets/up-arrow-icon.svg" alt="Submit Prompt" width="25" height="25" />
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.response-area {
+  flex-grow: 1;
+  padding: 20px;
+  margin-bottom: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.prompt-area {
+  border: 1px solid #ccc;
+  padding: 20px;
+  background-color: #e6e6e6;
+  min-height: 90px;
+  display: flex;
+  border-radius: 25px;
+}
+
+.chat-screen {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+#TextArea {
+  width: 95%;
+  height: 100%;
+  margin: 0;
+  font-size: 18px;
+  outline: none;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+}
+
+#SubmitButton {
+  width: 50px;
+  height: 50px;
+  border-radius: 30px;
+}
+
+.submit-container {
+  display: flex;
+  align-items: center;
+}
+
+.chunk-list li {
+  padding: 10px;
+}
+
+a {
+  text-decoration: underline;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+a:hover {
+  color: #0062ff;
+}
+
+.user-prompt {
+  background-color: #ccc;
+  border-radius: 20px;
+  padding: 15px;
+  overflow-wrap: break-word;
+  margin-left: auto;
+  text-align: right;
+  display: inline-block;
+}
+
+.user-promptContainer {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  background-color: #f0f0f0;
+}
+
+.user-prompt {
+  max-width: 70%;
+  width: fit-content;
+  background-color: #d3d3d3;
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+}
+</style>
