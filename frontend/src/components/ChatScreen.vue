@@ -28,7 +28,10 @@ const handleRagRequest = () => {
 
   const baseUrl = import.meta.env.VITE_BACKEND_URL
 
-  fetch(baseUrl + '/dummyLlama', {
+  prevPrompt.value = store.getPrompt()
+  responseMessage.value = ''
+
+  fetch(baseUrl + '/promptRag', {
     method: 'POST',
     body: formData
   })
@@ -39,13 +42,11 @@ const handleRagRequest = () => {
       return response.json()
     })
     .then((data) => {
+      prompt.value = ''
       prevModel.value = store.getModel()
-      prevPrompt.value = store.getPrompt()
 
       responseMessage.value = data.response
       chunks.value = data.chunks
-
-      prompt.value = ''
     })
     .catch(() => {
       console.log(`Error from RAG.`)
@@ -61,16 +62,16 @@ const flipChunksDisplayed = () => {
 <template>
   <div class="chat-screen">
     <div class="response-area">
-      <div v-if="responseMessage !== ''" class="">
-        <div class="user-promptContainer">
-          <div class="user-prompt">
-            {{ prevPrompt }}
-          </div>
+      <div class="user-promptContainer">
+        <div class="user-prompt" v-if="prevPrompt.length > 0">
+          {{ prevPrompt }}
         </div>
-
+      </div>
+      <div v-if="responseMessage !== ''" class="">
         <h3>
-          {{ prevModel }} -
-          <a @click="flipChunksDisplayed">
+          {{ prevModel }}
+          <a @click="flipChunksDisplayed" v-if="chunks !== null && chunks.length > 0">
+            <span> - </span>
             <span v-if="!chunksDisplayed">View Chunks</span>
             <span v-else>Close Chunks</span>
           </a>
