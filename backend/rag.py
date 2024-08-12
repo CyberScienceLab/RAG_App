@@ -6,7 +6,7 @@ torch.cuda.empty_cache()
 from transformers.utils import logging
 logging.set_verbosity_error()
 
-import cve_rag
+from cve_rag import Cve_Rag
 
 
 # initalize and return  llama3 tokenizer and model
@@ -22,6 +22,8 @@ def initialize_model():
 
 tokenizer, model = initialize_model()
 
+cve_rag = Cve_Rag(tokenizer, model)
+
 
 # prompt specified model and rag
 # return response string and relevant chunks
@@ -33,7 +35,6 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
     messages = []
     match rag_type:
         case 'CVE':
-            messages = []
             messages = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
@@ -90,3 +91,7 @@ def default_messages(prompt: str, extra_context: str):
             'content': f'Question: {prompt}\nExtra context to answer question: {extra_context}'
         }
     ]
+
+
+if __name__ == '__main__':
+    print(prompt(input("prompt: "), 'Llama3', 'CVE', '5', ''))
