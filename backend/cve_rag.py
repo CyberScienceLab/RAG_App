@@ -1,9 +1,14 @@
-# TODO:
-# - update the system prompt, getting bad output for verifying usage
-# - add llama sug
-
 import re
 import json 
+import torch
+import numpy as np
+import pandas as pd
+from sentence_transformers import util, SentenceTransformer
+
+from transformers.utils import logging
+logging.set_verbosity_error()
+
+
 
 CVE_FILE_PATH = '../../aeiyan/testingThings/cvelistV5/cves'
 
@@ -25,8 +30,7 @@ class Cve_Rag:
         cve_descriptions, cves_not_found = self.retrieve_cve_descriptions(all_cves)
 
         if len(cves_not_found) > 0:
-            # work with aeiyan on this part since he made llamasug
-            pass
+            extra_context += self.generate_missing_cve_assumptions(cves_not_found, extra_context)
 
         return self.build_messages(prompt, extra_context, cve_descriptions)
 
@@ -85,9 +89,11 @@ class Cve_Rag:
                         product_name = affected_info['product']
 
                     description = data['containers']['cna']['descriptions'][0]['value']
-                    cve_descriptions += f"CVE Number: {cve_number}, Vendor: {vendor_name}, Product: {product_name}, Description: {description} [DESCRIPTION_END]"
+                    cve_descriptions += f"CVE Number: {cve_number}, Vendor: {vendor_name}, Product: {product_name}, Description: {description} [DESCRIPTION_END]\n\n"
+                    print("\n\nThis is CVE Description: " + cve_descriptions)
 
             except FileNotFoundError:
+                cve_descriptions += f"CVE Number: {cve} Description: CVE does not exist [DESCRIPTION_END]\n\n"
                 not_found.append(cve)
                 
             
@@ -98,37 +104,47 @@ class Cve_Rag:
         return [
             {
                 'role': 'system',
-                'content': f'''You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) in security reports and providing detailed descriptions of CVEs. Your responsibilities include:
+                'content': f'''You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) in security reports and providing detailed descriptions of CVEs.
 
-                                Correct CVE Descriptions:
-                                {cve_descriptions}
+                Correct CVE Descriptions:
+                {cve_descriptions}
 
-                                Instructions:
-                                1. Verifying CVE Usage: A CVE is used correctly when it closely matches the provided Correct CVE Description. 
-                                   Incorrect usage includes citing non-existent CVEs, misrepresenting the Correct CVE Description, or inaccurately applying the CVE.
-                                   Analyze text from the file given and follow the below steps:
-                                    a) Verify each CVE mentioned in the user-provided report.
-                                    b) Indicate whether each CVE is used correctly or not.
-                                    c) You must provide a detailed explanation with direct quotes from both the report and the Correct CVE Description. A CVE in the report is incorrect if it describes a different vulnerability, even if the report accurately describes the vulnerability and its impact, and provides mitigation recommendations.
-                                2. Providing CVE Descriptions: When given a CVE identifier, return a comprehensive description of the CVE, including its CVE ID, Vendor, Product and description.
+                Your Responsibilities and Instructions:
 
-                                Examples:
-                                1. Input: "Please verify the CVE usage in this report?"
-                                Output: "Example Output:
+                1. **Verify CVE Usage in the File:**
+                - **Objective:** Ensure that each CVE mentioned in the user report closely matches the provided Correct CVE Description.
+                - **Steps:**
+                    a) **Verify Each CVE:** For each CVE mentioned, compare the CVE details in the user-provided report with the Correct CVE Description.
+                    - **Vulnerability:** Ensure that the vulnerability in the report matches the vulnerability in the Correct CVE Description.
+                    - **Product and Context:** Confirm that the product and context described in the report match those in the Correct CVE Description. Different products or contexts even with the same vulnerability type (e.g., SQL Injection) should not be considered a match if they are not specified in the CVE description.
+                    b) **State Usage:** Clearly indicate whether each CVE is used correctly or incorrectly.
+                    c) **Provide Detailed Explanation:** For each CVE:
+                        - Include direct quotes from both the Correct CVE Description and the report excerpt.
+                        - Explain why the CVE is used correctly or incorrectly, highlighting any discrepancies.
+                    d) **Include Recommendations:** Only if the file includes recommendations for a CVE correction, explicitly state the correct CVE that the correction says is correct, if no correction exists for the CVE don't mention anything.
 
-                                <h2>CVE-2023-1234: Buffer Overflow in Software X</h2>
-                                <ul>
-                                    <li>Correct Description: Buffer overflow vulnerability in software Y.</li>
-                                    <li>Report Excerpt: "Software X is facing a buffer overflow vulnerability."</li>
-                                    <li>Explanation: The report mentions a buffer overflow in Software X, which closely matches the correct CVE description of a buffer overflow in software Y. Although the software names differ, the nature of the vulnerability is accurately represented.
-                                    CVE-2024-2342: Cross-Site Scripting (XSS) in XYZ Web Server</li>
-                                </ul><br />
+                2. **Provide CVE Descriptions:**
+                - **Objective:** Use the information provided in the Correct CVE Descriptions to give a comprehensive explanation of each CVE mentioned.
+                - **Details:** Ensure each CVE description includes the CVE ID, Vendor, Product, and a detailed description. Do not include unnecessary or unrelated information.
 
-                                2. Input: "Provide information about the following CVEs CVE-2021-22986 and CVE-2022-22987."
-                                Output: 
-                                - CVE-2021-22986: [ID, Vendor, Product, Description]
-                                - CVE-2022-22987: [ID, Vendor, Product, Description]
-                            '''
+                **Note:** Make sure to format your response clearly and avoid including extraneous descriptions or sections that are not relevant to the current CVE verification. 
+                A CVE in the report is incorrect if it describes a different vulnerability, even if the report accurately describes the vulnerability and its impact, and provides mitigation recommendations.
+                If a CVE does not exist or its description does not match, provide a clear explanation. Do not repeat CVE descriptions at the end if they are not needed.
+
+                **Example Structure:**
+
+                1. **CVE-XXXX-YYYY: [Title]**
+                - **Correct Description:** [Detailed correct CVE description]
+                - **Report Excerpt:** "[Excerpt from the user-provided report]"
+                - **Explanation:** [Detailed explanation on correct or incorrect usage and CVE correction from the user-provided report if exists]
+
+                **CVE Descriptions:**
+                1. **CVE-XXXX-YYYY**
+                - **ID:** [CVE ID]
+                - **Vendor:** [Vendor]
+                - **Product:** [Product]
+                - **Description:** [Detailed CVE description]
+                '''
             },
             {
                 'role': 'user',
@@ -137,9 +153,86 @@ class Cve_Rag:
         ]
     
 
+    
+
     # take list of cves mentioned in a file that do not exist in RAG's database
     # let llama3 make an assumption about what the correct CVE id was
     def generate_missing_cve_assumptions(self, not_found: list[str], file_text: str) -> str:
+
+        llamaSug = ""
         for cve in not_found:
-            pass
-        pass
+            messages = [
+                {"role": "system", "content": "You are a chat bot."},
+                {"role": "user", "content": f"In 2 sentences, could you describe the use of {cve} in the provided text. Provided text: {file_text}."}
+            ]
+
+            input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.model.device)
+            outputs = self.model.generate(input_ids, max_new_tokens=700, eos_token_id=self.tokenizer.eos_token_id, do_sample=True, temperature=0.3, top_p=0.9)
+            response = outputs[0][input_ids.shape[-1]:]
+            llamaDesc = self.tokenizer.decode(response, skip_special_tokens=True)
+
+            theContext = self.asking_llama_for_advice(llamaDesc)
+
+            messages = [
+                {
+                    "role": "system", 
+                    "content": f""""You are a Q&A Assistant. You will be provided with relevant information about various CVEs. Based on this information, your task is to recommend the CVE number that most closely matches the description of the vulnerability.
+                                    Provided Relevant Information: {theContext} """},
+                {
+                    "role": "user", 
+                    "content": f""" Hello, could you recomend me a CVE that most closly resembles this chunk of text based of the relevant information that you have. Chunk of text: {llamaDesc}"""
+                },
+            ]   
+
+            input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(self.model.device)
+            outputs = self.model.generate(input_ids, max_new_tokens=700, eos_token_id=self.tokenizer.eos_token_id, do_sample=True, temperature=0.3, top_p=0.9)
+            response = outputs[0][input_ids.shape[-1]:]
+            res = self.tokenizer.decode(response, skip_special_tokens=True)
+
+            llamaSug += f"\n\n{cve} Recommendation: " + res
+        
+        return llamaSug
+    
+
+    def asking_llama_for_advice(self, cveDesp: str) -> str:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test2.csv'
+
+        text_chunks_and_embedding_df = pd.read_csv(csv_path)
+
+        text_chunks_and_embedding_df["embedding"] = text_chunks_and_embedding_df["embedding"].apply(lambda x: np.fromstring(x.strip("[]"), sep=" "))
+
+        embeddings = torch.tensor(np.stack(text_chunks_and_embedding_df["embedding"].tolist(), axis=0), dtype=torch.float32).to(device)
+
+        pages_and_chunks = text_chunks_and_embedding_df.to_dict(orient="records")
+
+        embedding_model = SentenceTransformer(model_name_or_path="all-mpnet-base-v2", device=device)
+
+        # n_resources_to_return could be the num chunks from rag.py
+        indices = self.retrieve_context(query=cveDesp, embeddings=embeddings, model=embedding_model)
+
+        context_items = [pages_and_chunks[i] for i in indices]
+
+        context_str = "- " + "\n- ".join([item["sentence_chunk"] for item in context_items])
+
+        return context_str
+
+
+    def retrieve_context(self, query: str,
+                embeddings: torch.tensor,
+                model: SentenceTransformer,
+                n_resources_to_return: int=5):
+        """
+        Embeds a query with model and returns top k scores and indices from embeddings.
+        """
+
+        # Embed the query
+        query_embedding = model.encode(query, convert_to_tensor=True)
+
+ 
+        dot_scores = util.dot_score(query_embedding, embeddings)[0]
+
+        _, indices = torch.topk(input=dot_scores, k=n_resources_to_return)
+
+        return indices
