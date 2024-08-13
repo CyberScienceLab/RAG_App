@@ -90,7 +90,6 @@ class Cve_Rag:
 
                     description = data['containers']['cna']['descriptions'][0]['value']
                     cve_descriptions += f"CVE Number: {cve_number}, Vendor: {vendor_name}, Product: {product_name}, Description: {description} [DESCRIPTION_END]\n\n"
-                    print("\n\nThis is CVE Description: " + cve_descriptions)
 
             except FileNotFoundError:
                 cve_descriptions += f"CVE Number: {cve} Description: CVE does not exist [DESCRIPTION_END]\n\n"
@@ -111,39 +110,49 @@ class Cve_Rag:
 
                 Your Responsibilities and Instructions:
 
+                You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) mentioned in security reports. Your tasks include verifying CVE usage, providing detailed explanations, and identifying correct or incorrect applications of CVEs based on the provided descriptions.
+
+                **Correct CVE Descriptions:**
+                {cve_descriptions}
+
+                **Responsibilities and Instructions:**
+
                 1. **Verify CVE Usage in the File:**
                 - **Objective:** Ensure that each CVE mentioned in the user report closely matches the provided Correct CVE Description.
                 - **Steps:**
-                    a) **Verify Each CVE:** For each CVE mentioned, compare the CVE details in the user-provided report with the Correct CVE Description.
-                    - **Vulnerability:** Ensure that the vulnerability in the report matches the vulnerability in the Correct CVE Description.
-                    - **Product and Context:** Confirm that the product and context described in the report match those in the Correct CVE Description. Different products or contexts even with the same vulnerability type (e.g., SQL Injection) should not be considered a match if they are not specified in the CVE description.
+                    a) **Verify Each CVE:** For each CVE mentioned, compare the details in the user-provided report with the Correct CVE Description.
+                        - **Vulnerability:** Compare the vulnerability in the report with the vulnerability from the Correct CVE Description. If they are not the same the CVE usage is incorrect.
+                        - **Product and Context:** Confirm that the product and context described in the report align with the product and context in the description. If the products or contexts are not the same, the CVE usage is incorrect.
                     b) **State Usage:** Clearly indicate whether each CVE is used correctly or incorrectly.
                     c) **Provide Detailed Explanation:** For each CVE:
                         - Include direct quotes from both the Correct CVE Description and the report excerpt.
-                        - Explain why the CVE is used correctly or incorrectly, highlighting any discrepancies.
-                    d) **Include Recommendations:** Only if the file includes recommendations for a CVE correction, explicitly state the correct CVE that the correction says is correct, if no correction exists for the CVE don't mention anything.
+                        - Explain why the CVE is used correctly or incorrectly, highlighting any discrepancies or mismatches.
+                        - A CVE in the report is considered incorrect if it describes a different vulnerability than the one specified in the Correct CVE Description, even if the report accurately describes the vulnerability and its impact.
+                    d) **CVE Correction:** If the report includes for CVE corrections indicated by [CVE_CORRECTION], explicitly state the correct CVE as recommended. If no correction exists for the CVE, do not mention anything.
+                - **Example Structure:**
+                    **CVE-XXXX-YYYY: [Title]**
+                    **Correct Description:** [Detailed description of the CVE from Correct CVE Descriptions]
+                    **Report Excerpt:** "[Excerpt from the user-provided report]"
+                    **Explanation:** [Detailed explanation on why the usage is correct or incorrect and CVE correction from the user-provided report if exists]
+
 
                 2. **Provide CVE Descriptions:**
                 - **Objective:** Use the information provided in the Correct CVE Descriptions to give a comprehensive explanation of each CVE mentioned.
                 - **Details:** Ensure each CVE description includes the CVE ID, Vendor, Product, and a detailed description. Do not include unnecessary or unrelated information.
+                - **Example Structure:**
+                    **CVE-XXXX-YYYY**
+                    **ID:** [CVE ID]
+                    **Vendor:** [Vendor]
+                    **Product:** [Product]
+                    **Description:** [Detailed CVE description]
 
-                **Note:** Make sure to format your response clearly and avoid including extraneous descriptions or sections that are not relevant to the current CVE verification. 
-                A CVE in the report is incorrect if it describes a different vulnerability, even if the report accurately describes the vulnerability and its impact, and provides mitigation recommendations.
-                If a CVE does not exist or its description does not match, provide a clear explanation. Do not repeat CVE descriptions at the end if they are not needed.
-
-                **Example Structure:**
-
-                1. **CVE-XXXX-YYYY: [Title]**
-                - **Correct Description:** [Detailed correct CVE description]
-                - **Report Excerpt:** "[Excerpt from the user-provided report]"
-                - **Explanation:** [Detailed explanation on correct or incorrect usage and CVE correction from the user-provided report if exists]
-
-                **CVE Descriptions:**
-                1. **CVE-XXXX-YYYY**
-                - **ID:** [CVE ID]
-                - **Vendor:** [Vendor]
-                - **Product:** [Product]
-                - **Description:** [Detailed CVE description]
+                    
+                **Notes:** 
+                - Make sure to format your response exactly as stated above in Example Structure.
+                - Never include [DESCRIPTION_END] in the output, it is only used to is used to indicate end of CVE description for your processing.
+                - The new CVE from CVE_CORRECTION must be included in the original CVE's Explanation and nowhere else.
+                - Any CVE mentioned in CVE_CORRECTION is only to be displayed with the CVE it's replacing, not in it's own output
+                - You only have on responsibility per request, never do both instructions 1 and 2 together
                 '''
             },
             {
@@ -180,7 +189,7 @@ class Cve_Rag:
                                     Provided Relevant Information: {theContext} """},
                 {
                     "role": "user", 
-                    "content": f""" Hello, could you recomend me a CVE that most closly resembles this chunk of text based of the relevant information that you have. Chunk of text: {llamaDesc}"""
+                    "content": f""" Hello, could you recomend me a CVE that most closly resembles this chunk of text based of the relevant information that you have. Only give me the CVE ID, I don't want any other text in the response. Chunk of text: {llamaDesc}"""
                 },
             ]   
 
@@ -189,7 +198,7 @@ class Cve_Rag:
             response = outputs[0][input_ids.shape[-1]:]
             res = self.tokenizer.decode(response, skip_special_tokens=True)
 
-            llamaSug += f"\n\n{cve} Recommendation: " + res
+            llamaSug += f"\n\n[[CVE_CORRECTION]: {cve} is used incorrectly in report, the correct CVE is: {res}]"
         
         return llamaSug
     

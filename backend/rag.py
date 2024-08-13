@@ -1,4 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import requests
+import os
 
 import torch
 torch.cuda.empty_cache()
@@ -7,6 +9,12 @@ from transformers.utils import logging
 logging.set_verbosity_error()
 
 from cve_rag import Cve_Rag
+
+
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+SYSTEM_INDEX = 0
+USER_INDEX = 1
 
 
 # initalize and return  llama3 tokenizer and model
@@ -41,10 +49,16 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
             messages = default_messages(prompt, extra_context)
 
 
-    if model == 'Llama3':
-        response = prompt_llama3(messages)
-    elif model == 'Gemini':
-        response = prompt_gemini(messages)
+    match model:
+        case  'Llama3':
+            response = prompt_llama3(messages)
+        
+        case  'Gemini':
+            response = prompt_gemini(messages)
+
+        case _:
+            response = f'{model} doesn\'t exist in the list off our LLM models available'
+
 
     # TODO: get chunks
     # cve rag, chunks can be the cve descriptions or something similar
@@ -66,7 +80,7 @@ def prompt_llama3(messages: list[str]) -> str:
         max_new_tokens=700, 
         eos_token_id=tokenizer.eos_token_id, 
         do_sample=True, 
-        temperature=0.3, 
+        temperature=0.2, 
         top_p=0.9
     )
 
@@ -75,7 +89,54 @@ def prompt_llama3(messages: list[str]) -> str:
 
 
 def prompt_gemini(messages: list[str]) -> str:
-    return "NOT_IMPLEMENTED"
+    # must use REST to communicate with Gemini LLM, the Python library
+    # google.generativeai has dependency version issues that couldn't be resolved
+
+    headers = { 'x-goog-api-key': GOOGLE_API_KEY }
+    body = {
+        "system_instruction": {
+            "parts": {
+                "text": str(messages[SYSTEM_INDEX])
+            }
+        },
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": str(messages[USER_INDEX])
+                    }
+                ]
+            }
+        ],
+        "safetySettings": [
+            { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+        ]
+    }
+
+    response = requests.post(GEMINI_URL, json=body, headers=headers)
+
+    if response.ok:
+        try:
+            return (
+                response.json()
+                    .get('candidates')[0]
+                    .get('content')
+                    .get('parts')[0]
+                    .get('text') 
+            )
+
+        except (KeyError, IndexError, TypeError) as e:
+            err = f'Bad response received from Gemini: {e}'
+            print(err)
+            return err
+        
+
+    err = f'Error occurred in Gemini request: {response.text}'
+    print(err)
+    return err
 
 
 def default_messages(prompt: str, extra_context: str):
@@ -94,4 +155,13 @@ def default_messages(prompt: str, extra_context: str):
 
 
 if __name__ == '__main__':
-    print(prompt(input("prompt: "), 'Llama3', 'CVE', '5', ''))
+    
+    # prompt_message = 'Please verify if the following CVEs have been used correctly in the following Threat Intelligence Report'
+    # res = prompt(prompt_message, 'Gemini', 'CVE', '5', report)
+
+    prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
+    res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
+
+    print(res["response"])
+
+
