@@ -41,9 +41,10 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
         extra_context = 'No File / extra context given.'
 
     messages = []
+    chunks = []
     match rag_type:
         case 'CVE':
-            messages = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+            messages, chunks = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
             messages = default_messages(prompt, extra_context)
@@ -64,7 +65,7 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
     # cve rag, chunks can be the cve descriptions or something similar
     return {
         'response': response,
-        'chunks': []
+        'chunks': chunks
     }
 
 
@@ -163,5 +164,6 @@ if __name__ == '__main__':
     res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
 
     print(res["response"])
+    print(res['chunks'])
 
 

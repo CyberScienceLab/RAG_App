@@ -9,7 +9,6 @@ from transformers.utils import logging
 logging.set_verbosity_error()
 
 
-
 CVE_FILE_PATH = '../../aeiyan/testingThings/cvelistV5/cves'
 
 
@@ -22,17 +21,19 @@ class Cve_Rag:
     
     # get messages array to prompt the LLM that contains any relevant context retrieved by the 
     # RAG to help with generating the response
-    def get_messages_with_context(self, prompt: str, extra_context: str, num_chunks: int) -> list[str, str]:
+    def get_messages_with_context(self, prompt: str, extra_context: str, num_chunks: int) -> tuple[list[dict[str, str]], list[str]]:
         all_text = prompt + extra_context
 
         all_cves = self.extract_cves_from_text(all_text)
 
         cve_descriptions, cves_not_found = self.retrieve_cve_descriptions(all_cves)
 
+        assumptions = ''
         if len(cves_not_found) > 0:
-            extra_context += self.generate_missing_cve_assumptions(cves_not_found, extra_context)
+            assumptions = self.generate_missing_cve_assumptions(cves_not_found, extra_context)
+            extra_context += assumptions
 
-        return self.build_messages(prompt, extra_context, cve_descriptions)
+        return self.build_messages(prompt, extra_context, str(cve_descriptions)), [*cve_descriptions, assumptions]
 
 
     # Extract CVEs
@@ -65,8 +66,8 @@ class Cve_Rag:
 
     # Load CVE descriptions from database
     # return (str containing cve descriptions, list of cve's that weren't found)
-    def retrieve_cve_descriptions(self, cves: list[str]) -> tuple[str, list[str]]:  
-        cve_descriptions = ''
+    def retrieve_cve_descriptions(self, cves: list[str]) -> tuple[list[str], list[str]]:  
+        cve_descriptions = []
         not_found = []
 
         for cve in cves:
@@ -89,10 +90,10 @@ class Cve_Rag:
                         product_name = affected_info['product']
 
                     description = data['containers']['cna']['descriptions'][0]['value']
-                    cve_descriptions += f"CVE Number: {cve_number}, Vendor: {vendor_name}, Product: {product_name}, Description: {description} [DESCRIPTION_END]\n\n"
+                    cve_descriptions.append(f"CVE Number: {cve_number}, Vendor: {vendor_name}, Product: {product_name}, Description: {description} [DESCRIPTION_END]\n\n")
 
             except FileNotFoundError:
-                cve_descriptions += f"CVE Number: {cve} Description: CVE does not exist [DESCRIPTION_END]\n\n"
+                cve_descriptions.append(f"CVE Number: {cve} Description: CVE does not exist [DESCRIPTION_END]\n\n")
                 not_found.append(cve)
                 
             
