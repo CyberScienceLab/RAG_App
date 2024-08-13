@@ -199,20 +199,20 @@ class Cve_Rag:
 
         csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test2.csv'
 
-        text_chunks_and_embedding_df = pd.read_csv(csv_path)
+        chunk_embeddings_df = pd.read_csv(csv_path)
 
-        text_chunks_and_embedding_df["embedding"] = text_chunks_and_embedding_df["embedding"].apply(lambda x: np.fromstring(x.strip("[]"), sep=" "))
+        chunk_embeddings_df["embedding"] = chunk_embeddings_df["embedding"].apply(lambda x: np.fromstring(x.strip("[]"), sep=" "))
 
-        embeddings = torch.tensor(np.stack(text_chunks_and_embedding_df["embedding"].tolist(), axis=0), dtype=torch.float32).to(device)
+        embeddings = torch.tensor(np.stack(chunk_embeddings_df["embedding"].tolist(), axis=0), dtype=torch.float32).to(device)
 
-        pages_and_chunks = text_chunks_and_embedding_df.to_dict(orient="records")
+        pages_chunks = chunk_embeddings_df.to_dict(orient="records")
 
         embedding_model = SentenceTransformer(model_name_or_path="all-mpnet-base-v2", device=device)
 
         # n_resources_to_return could be the num chunks from rag.py
         indices = self.retrieve_context(query=cveDesp, embeddings=embeddings, model=embedding_model)
 
-        context_items = [pages_and_chunks[i] for i in indices]
+        context_items = [pages_chunks[i] for i in indices]
 
         context_str = "- " + "\n- ".join([item["sentence_chunk"] for item in context_items])
 
