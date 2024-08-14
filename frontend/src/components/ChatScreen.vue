@@ -8,7 +8,8 @@ const chunks = ref([])
 const chunksDisplayed = ref(false)
 const prevModel = ref('')
 const prevPrompt = ref('')
-const res = ref({})
+const res = ref([])
+const promptColor = ref('#000')
 
 watch(prompt, (newValue) => {
   store.setPrompt(newValue)
@@ -29,7 +30,8 @@ const handleRagRequest = () => {
   const baseUrl = import.meta.env.VITE_BACKEND_URL
 
   prevPrompt.value = store.getPrompt()
-  res.value = {}
+  res.value = []
+  promptColor.value = '#e6e6e6'
 
   fetch(baseUrl + '/promptRag', {
     method: 'POST',
@@ -42,15 +44,16 @@ const handleRagRequest = () => {
       return response.json()
     })
     .then((data) => {
-      prompt.value = ''
       prevModel.value = store.getModel()
+      prompt.value = ''
+      promptColor.value = '#000'
+      chunks.value = data.chunks.filter((chunk) => chunk.length > 0)
 
       try {
         res.value = JSON.parse(data.response)
       } catch (e) {
         res.value = data.response
       }
-      chunks.value = data.chunks.filter((chunk) => chunk.length > 0)
     })
     .catch(() => {
       console.log(`Error from RAG.`)
@@ -65,8 +68,8 @@ const flipChunksDisplayed = () => {
 const isEmpty = (value) => {
   if (typeof value === 'string') {
     return value.trim().length === 0
-  } else if (typeof value === 'object') {
-    return value && Object.keys(value).length === 0 && value.constructor === Object
+  } else if (Array.isArray(value)) {
+    return value.length === 0
   }
   return !value
 }
@@ -96,18 +99,16 @@ const isEmpty = (value) => {
           </ol>
         </div>
 
-        <div v-if="typeof res === 'object'">
-          <div v-for="(value, key) in Object.entries(res)" :key="key">
+        <div v-if="Array.isArray(res)">
+          <div v-for="(element, key1) in res" :key="key1">
             <hr />
-            <h4>{{ value[0] }}</h4>
-            <ul>
-              <li v-for="(subValue, subKey) in Object.entries(value[1])" :key="subKey">
-                {{ subValue[0] }}: {{ subValue[1] }}
-              </li>
-            </ul>
+            <p v-for="(keyValueArr, key2) in Object.entries(element)" :key="key2">
+              <span class="json-key">{{ keyValueArr[0].replace('_', ' ') }}:</span>
+              {{ keyValueArr[1] }}
+            </p>
           </div>
         </div>
-        <div v-else>
+        <div v-else :style="{ paddingBottom: '10px' }">
           {{ res }}
         </div>
       </div>
@@ -118,6 +119,7 @@ const isEmpty = (value) => {
         @keydown.enter.prevent="handleRagRequest"
         placeholder="Enter a prompt here"
         id="TextArea"
+        :style="{ color: promptColor }"
       ></textarea>
 
       <div class="submit-container">
@@ -222,5 +224,9 @@ a:hover {
   background-color: #d3d3d3;
   padding: 10px 20px;
   border: 1px solid #ccc;
+}
+
+.json-key {
+  font-weight: 700;
 }
 </style>

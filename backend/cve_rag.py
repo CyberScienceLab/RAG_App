@@ -13,20 +13,20 @@ CVE_FILE_PATH = '../../aeiyan/testingThings/cvelistV5/cves'
 
 EXAMPLE_CVE_DESCRIPTION_OUTPUT = '''[
 	    {
-	      \"cve_id\": \"CVE-XXXX-YYYY\",
-	      \"vendor\": \"Vendor\",
-	      \"product\": \"Product\",
-	      \"description\": \"Detailed CVE description\"
+	      \"CVE_ID\": \"CVE-XXXX-YYYY\",
+	      \"Vendor\": \"Vendor\",
+	      \"Product\": \"Product\",
+	      \"Description\": \"Detailed CVE description\"
 	    }
 	]'''
 
 EXAMPLE_VERIFY_CVE_USAGE_OUTPUT = '''[
 	    {
-	      "cve_id": "CVE-XXXX-YYYY",
-	      "correct_description": "Detailed description of the CVE",
-	      "report_excerpt": "Report excerpt describing the CVE",
-	      "usage": "correct/incorrect",
-	      "explanation": "Detailed explanation of the verification result"
+	      "CVE_ID": "CVE-XXXX-YYYY",
+	      "Correct_Description": "Detailed description of the CVE",
+	      "Report_Excerpt": "Report excerpt describing the CVE",
+	      "Usage": "correct/incorrect",
+	      "Explanation": "Detailed explanation of the verification result"
 	    }
 	]'''
 

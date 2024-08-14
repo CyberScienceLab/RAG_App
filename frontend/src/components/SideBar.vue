@@ -81,7 +81,7 @@ onMounted(async () => {
       </div>
 
       <div class="container">
-        <label for="chunkInput">Relevant Chunks</label>
+        <label for="chunkInput"># of Relevant Context Used</label>
         <div class="input-wrapper">
           <input
             type="number"
