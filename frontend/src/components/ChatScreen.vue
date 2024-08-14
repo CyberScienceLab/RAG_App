@@ -85,11 +85,10 @@ const isEmpty = (value) => {
       </div>
       <div v-if="!isEmpty(res)" class="rag-prompt">
         <h3>
-          {{ prevModel }}
+          {{ prevModel }} --
           <a @click="flipChunksDisplayed" v-if="chunks !== null && chunks.length > 0">
-            <span> - </span>
-            <span v-if="!chunksDisplayed">View Chunks</span>
-            <span v-else>Close Chunks</span>
+            <span v-if="!chunksDisplayed">View Relevant Context</span>
+            <span v-else>Hide Relevant Context</span>
           </a>
         </h3>
 
