@@ -64,7 +64,7 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
 
 
     return {
-        'response': response,
+        'response': extract_json_array_if_present(response),
         'chunks': chunks
     }
 
@@ -85,8 +85,13 @@ def prompt_llama3(messages: list[str]) -> str:
         top_p=0.9
     )
 
-    response = outputs[0][input_ids.shape[-1]:]
-    return tokenizer.decode(response, skip_special_tokens=True)
+    response = tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
+
+    # local llama3 is a pain... so you have to replace all single quotes with double quotes
+    # so JSON can properly be parsed by the fe
+    response.replace("'", '\\\"')
+    
+    return response
 
 
 def prompt_gemini(messages: list[str]) -> str:
@@ -129,14 +134,6 @@ def prompt_gemini(messages: list[str]) -> str:
                     .get('text') 
             )
 
-            json_prefix = '```json\n'
-            json_postfix = '\n```'
-            if res.startswith(json_prefix):
-                res = res[len(json_prefix):]
-
-            if res.endswith(json_postfix):
-                res = res[:-len(json_postfix)]
-
             return res
 
         except (KeyError, IndexError, TypeError) as e:
@@ -165,10 +162,35 @@ def default_messages(prompt: str, extra_context: str):
     ]
 
 
+# extract json object from string if present else return text passed as argument
+# required due to LLM's returning additional text in their responses
+def extract_json_array_if_present(text: str) -> str:
+    start_index = -1
+    end_index = -1
+
+    for i in range(len(text)):
+        if text[i] == '[':
+            start_index = i
+            break
+
+    for i in range(len(text) - 1, -1, -1):
+        if text[i] == ']':
+            end_index = i + 1
+            break
+
+    if start_index == -1 or end_index == -1:
+        return text
+
+    return text[start_index : end_index]
+
+
 if __name__ == '__main__':
     
     prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
     res = prompt(prompt_message, 'Llama3', 'CVE', '5', '')
+
+    print("RES:::")
+    print(res["response"])
 
     # prompt_message = 'Please verify if the following CVEs have been used correctly in the following Threat Intelligence Report'
     # res = prompt(prompt_message, 'Gemini', 'CVE', '5', report)
@@ -176,7 +198,8 @@ if __name__ == '__main__':
     # prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
     # res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
 
-    print(res["response"])
-    print(res['chunks'])
+    # # print(res['chunks'])
+    # print("RES:::")
+    # print(res["response"])
 
 
