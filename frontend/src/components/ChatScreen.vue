@@ -4,11 +4,11 @@ import { useAppStore } from '@/stores/useAppStore'
 
 const store = useAppStore()
 const prompt = ref(store.prompt)
-const responseMessage = ref('')
 const chunks = ref([])
 const chunksDisplayed = ref(false)
 const prevModel = ref('')
 const prevPrompt = ref('')
+const res = ref({})
 
 watch(prompt, (newValue) => {
   store.setPrompt(newValue)
@@ -29,7 +29,7 @@ const handleRagRequest = () => {
   const baseUrl = import.meta.env.VITE_BACKEND_URL
 
   prevPrompt.value = store.getPrompt()
-  responseMessage.value = ''
+  res.value = {}
 
   fetch(baseUrl + '/promptRag', {
     method: 'POST',
@@ -45,17 +45,30 @@ const handleRagRequest = () => {
       prompt.value = ''
       prevModel.value = store.getModel()
 
-      responseMessage.value = data.response
-      chunks.value = data.chunks
+      try {
+        res.value = JSON.parse(data.response)
+      } catch (e) {
+        res.value = data.response
+      }
+      chunks.value = data.chunks.filter((chunk) => chunk.length > 0)
     })
     .catch(() => {
       console.log(`Error from RAG.`)
-      responseMessage.value = 'An error occured while processing request, please try again.'
+      res.value = 'An error occured while processing request, please try again.'
     })
 }
 
 const flipChunksDisplayed = () => {
   chunksDisplayed.value = !chunksDisplayed.value
+}
+
+const isEmpty = (value) => {
+  if (typeof value === 'string') {
+    return value.trim().length === 0
+  } else if (typeof value === 'object') {
+    return value && Object.keys(value).length === 0 && value.constructor === Object
+  }
+  return !value
 }
 </script>
 
@@ -67,7 +80,7 @@ const flipChunksDisplayed = () => {
           {{ prevPrompt }}
         </div>
       </div>
-      <div v-if="responseMessage !== ''" class="">
+      <div v-if="!isEmpty(res)" class="rag-prompt">
         <h3>
           {{ prevModel }}
           <a @click="flipChunksDisplayed" v-if="chunks !== null && chunks.length > 0">
@@ -83,7 +96,20 @@ const flipChunksDisplayed = () => {
           </ol>
         </div>
 
-        {{ responseMessage }}
+        <div v-if="typeof res === 'object'">
+          <div v-for="(value, key) in Object.entries(res)" :key="key">
+            <hr />
+            <h4>{{ value[0] }}</h4>
+            <ul>
+              <li v-for="(subValue, subKey) in Object.entries(value[1])" :key="subKey">
+                {{ subValue[0] }}: {{ subValue[1] }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div v-else>
+          {{ res }}
+        </div>
       </div>
     </div>
     <div class="prompt-area">
@@ -172,6 +198,15 @@ a:hover {
   margin-left: auto;
   text-align: right;
   display: inline-block;
+}
+
+.rag-prompt {
+  background-color: #ccc;
+  border-radius: 20px;
+  padding: 5px 15px;
+  overflow-wrap: break-word;
+  margin-top: 30px;
+  max-width: 70%;
 }
 
 .user-promptContainer {
