@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import requests
 import os
+import json
 
 import torch
 torch.cuda.empty_cache()
@@ -36,6 +37,7 @@ cve_rag = Cve_Rag(tokenizer, model)
 # prompt specified model and rag
 # return response string and relevant chunks
 def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_context: str) -> dict[str, str]:
+    print(f"[CSL] model: {model} -- rag type: {rag_type} -- num chunks: {num_chunks} -- file uploaded: {len(extra_context) > 0}")
 
     if len(extra_context) == 0:
         extra_context = 'No File / extra context given.'
@@ -61,8 +63,6 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
             response = f'{model} doesn\'t exist in the list off our LLM models available'
 
 
-    # TODO: get chunks
-    # cve rag, chunks can be the cve descriptions or something similar
     return {
         'response': response,
         'chunks': chunks
@@ -121,13 +121,23 @@ def prompt_gemini(messages: list[str]) -> str:
 
     if response.ok:
         try:
-            return (
+            res = (
                 response.json()
                     .get('candidates')[0]
                     .get('content')
                     .get('parts')[0]
                     .get('text') 
             )
+
+            json_prefix = '```json\n'
+            json_postfix = '\n```'
+            if res.startswith(json_prefix):
+                res = res[len(json_prefix):]
+
+            if res.endswith(json_postfix):
+                res = res[:-len(json_postfix)]
+
+            return res
 
         except (KeyError, IndexError, TypeError) as e:
             err = f'Bad response received from Gemini: {e}'
@@ -157,11 +167,14 @@ def default_messages(prompt: str, extra_context: str):
 
 if __name__ == '__main__':
     
+    prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
+    res = prompt(prompt_message, 'Llama3', 'CVE', '5', '')
+
     # prompt_message = 'Please verify if the following CVEs have been used correctly in the following Threat Intelligence Report'
     # res = prompt(prompt_message, 'Gemini', 'CVE', '5', report)
 
-    prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
-    res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
+    # prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
+    # res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
 
     print(res["response"])
     print(res['chunks'])

@@ -39,14 +39,14 @@ class Cve_Rag:
     # Extract CVEs
     def extract_cves_from_text(self, text):
         pattern = r'CVE-\d{4}-\d{4,7}'
-        cve_matches = re.findall(pattern, text)
+        cve_matches = re.findall(pattern, text, re.IGNORECASE)
         return list(set(cve_matches))
 
 
     # Format CVE numbers for database lookup
     def parse_cve_numbers_from_code(self, cve_string):
         pattern = r'CVE-(\d{4})-(\d{4,7})'
-        match = re.match(pattern, cve_string)
+        match = re.match(pattern, cve_string, re.IGNORECASE)
         if match:
             first_set = int(match.group(1))
             second_set = match.group(2)
@@ -104,14 +104,8 @@ class Cve_Rag:
         return [
             {
                 'role': 'system',
-                'content': f'''You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) in security reports and providing detailed descriptions of CVEs.
-
-                Correct CVE Descriptions:
-                {cve_descriptions}
-
-                Your Responsibilities and Instructions:
-
-                You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) mentioned in security reports. Your tasks include verifying CVE usage, providing detailed explanations, and identifying correct or incorrect applications of CVEs based on the provided descriptions.
+                'content': f'''You are an advanced CVE information system designed to assist users in verifying the usage of CVEs (Common Vulnerabilities and Exposures) mentioned in security reports or providing information on CVEs. 
+                Your tasks include verifying CVE usage, providing detailed explanations, and identifying correct or incorrect applications of CVEs based on the provided descriptions.
 
                 **Correct CVE Descriptions:**
                 {cve_descriptions}
@@ -131,7 +125,7 @@ class Cve_Rag:
                         - A CVE in the report is considered incorrect if it describes a different vulnerability than the one specified in the Correct CVE Description, even if the report accurately describes the vulnerability and its impact.
                     d) **CVE Correction:** If the report includes for CVE corrections indicated by [CVE_CORRECTION], explicitly state the correct CVE as recommended. If no correction exists for the CVE, do not mention anything.
                 - **Example Structure:**
-                    **CVE-XXXX-YYYY: [Title]**
+                    **CVE-XXXX-YYYY: [Title that displays CVE id]**
                     **Correct Description:** [Detailed description of the CVE from Correct CVE Descriptions]
                     **Report Excerpt:** "[Excerpt from the user-provided report]"
                     **Explanation:** [Detailed explanation on why the usage is correct or incorrect and CVE correction from the user-provided report if exists]
@@ -150,10 +144,11 @@ class Cve_Rag:
                     
                 **Notes:** 
                 - Make sure to format your response exactly as stated above in Example Structure.
-                - Never include [DESCRIPTION_END] in the output, it is only used to is used to indicate end of CVE description for your processing.
+                - [DESCRIPTION_END] is used to help indicate the end of a CVE description, never use [DESCRIPTION_END] in your response.
                 - The new CVE from CVE_CORRECTION must be included in the original CVE's Explanation and nowhere else.
                 - Any CVE mentioned in CVE_CORRECTION is only to be displayed with the CVE it's replacing, not in it's own output
                 - You only have on responsibility per request, never do both instructions 1 and 2 together
+                - All responses should be in valid json format
                 '''
             },
             {
@@ -207,7 +202,7 @@ class Cve_Rag:
     def asking_llama_for_advice(self, cveDesp: str) -> str:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test2.csv'
+        csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test3.csv'
 
         chunk_embeddings_df = pd.read_csv(csv_path)
 
@@ -215,14 +210,14 @@ class Cve_Rag:
 
         embeddings = torch.tensor(np.stack(chunk_embeddings_df["embedding"].tolist(), axis=0), dtype=torch.float32).to(device)
 
-        pages_chunks = chunk_embeddings_df.to_dict(orient="records")
+        text_chunks = chunk_embeddings_df.to_dict(orient="records")
 
         embedding_model = SentenceTransformer(model_name_or_path="all-mpnet-base-v2", device=device)
 
         # n_resources_to_return could be the num chunks from rag.py
         indices = self.retrieve_context(query=cveDesp, embeddings=embeddings, model=embedding_model)
 
-        context_items = [pages_chunks[i] for i in indices]
+        context_items = [text_chunks[i] for i in indices]
 
         context_str = "- " + "\n- ".join([item["sentence_chunk"] for item in context_items])
 
