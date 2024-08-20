@@ -1,3 +1,4 @@
+import sys
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import requests
 import os
@@ -9,14 +10,20 @@ torch.cuda.empty_cache()
 from transformers.utils import logging
 logging.set_verbosity_error()
 
+# CSL Imports =======================================================
 from cve_rag import Cve_Rag
 
+# must add the path to the project to use it directly as import
+sys.path.append('../../mark/Penetration_Testing_Rag')
+from pen_test_rag import Pen_Test_Rag
 
+
+# Constants =========================================================
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
 SYSTEM_INDEX = 0
 USER_INDEX = 1
-
+# ===================================================================
 
 # initalize and return  llama3 tokenizer and model
 def initialize_model():
@@ -32,7 +39,7 @@ def initialize_model():
 tokenizer, model = initialize_model()
 
 cve_rag = Cve_Rag(tokenizer, model)
-
+pen_test_rag = Pen_Test_Rag(tokenizer, model)
 
 # prompt specified model and rag
 # return response string and relevant chunks
@@ -47,6 +54,9 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
     match rag_type:
         case 'CVE':
             messages, chunks = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+
+        case 'Pen-Testing':
+            messages, chunks = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
             messages = default_messages(prompt, extra_context)
@@ -186,20 +196,16 @@ def extract_json_array_if_present(text: str) -> str:
 
 if __name__ == '__main__':
     
-    prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
-    res = prompt(prompt_message, 'Llama3', 'CVE', '5', '')
-
-    print("RES:::")
-    print(res["response"])
-
-    # prompt_message = 'Please verify if the following CVEs have been used correctly in the following Threat Intelligence Report'
-    # res = prompt(prompt_message, 'Gemini', 'CVE', '5', report)
-
     # prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
-    # res = prompt(prompt_message, 'Gemini', 'CVE', '5', '')
+    # res = prompt(prompt_message, 'Llama3', 'CVE', '5', '')
 
-    # # print(res['chunks'])
     # print("RES:::")
     # print(res["response"])
 
+    prompt_message = 'Find one exploit that was created by Mark Schaefer and give me the description of it'
+    res = prompt(prompt_message, 'Llama3', 'Pen-Testing', '5', '')
 
+    print("RES:::")
+    print(res["response"])
+    print(res['chunks'])
+    
