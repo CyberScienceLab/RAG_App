@@ -1,8 +1,8 @@
 import sys
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import requests
 import os
 import json
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 import torch
 torch.cuda.empty_cache()
@@ -49,6 +49,8 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
     if len(extra_context) == 0:
         extra_context = 'No File / extra context given.'
 
+    num_chunks = max(num_chunks, 1)
+
     messages = []
     chunks = []
     match rag_type:
@@ -56,7 +58,7 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
             messages, chunks = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case 'Pen-Testing':
-            messages, chunks = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+            messages, chunks, _ = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
             messages = default_messages(prompt, extra_context)
@@ -202,10 +204,12 @@ if __name__ == '__main__':
     # print("RES:::")
     # print(res["response"])
 
-    prompt_message = 'Find one exploit that was created by Mark Schaefer and give me the description of it'
-    res = prompt(prompt_message, 'Llama3', 'Pen-Testing', '5', '')
+    prompt_message = 'Find me a few DOS exploits that target android'
+    # prompt_message = 'Find me an exploit that was created by Mark Schaefer'
+    res = prompt(prompt_message, 'Llama3', 'Pen-Testing', 5, '')
+    # res = prompt(prompt_message, 'Gemini', 'Pen-Testing', 5, '')
 
     print("RES:::")
     print(res["response"])
-    print(res['chunks'])
+    # print(res['chunks'])
     
