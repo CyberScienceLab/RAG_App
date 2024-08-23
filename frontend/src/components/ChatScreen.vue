@@ -50,7 +50,8 @@ const handleRagRequest = () => {
       chunks.value = data.chunks.filter((chunk) => chunk.length > 0)
 
       try {
-        res.value = JSON.parse(data.response)
+        // replace below is required to use Gemini responses that contain single quotes
+        res.value = JSON.parse(data.response.replace(/\\'/g, "'"))
       } catch (e) {
         res.value = data.response
       }
@@ -102,8 +103,13 @@ const isEmpty = (value) => {
           <div v-for="(element, key1) in res" :key="key1">
             <hr />
             <p v-for="(keyValueArr, key2) in Object.entries(element)" :key="key2">
-              <span class="json-key">{{ keyValueArr[0].replace('_', ' ') }}:</span>
-              {{ keyValueArr[1] }}
+              <span v-if="keyValueArr[0].toLowerCase() === 'link'"
+                ><a :href="keyValueArr[1]" target="_blank">{{ keyValueArr[1] }}</a></span
+              >
+              <span v-else-if="keyValueArr[1].length > 0">
+                <span class="json-key">{{ keyValueArr[0].replace('_', ' ') }}:</span>
+                {{ keyValueArr[1] }}
+              </span>
             </p>
           </div>
         </div>

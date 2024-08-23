@@ -17,6 +17,11 @@ from cve_rag import Cve_Rag
 sys.path.append('../../mark/Penetration_Testing_Rag')
 from pen_test_rag import Pen_Test_Rag
 
+sys.path.append('../../aeiyan/testingThings/Malware_Analysis_Rag')
+from mbTesting3 import Malware_Rag
+
+sys.path.append('../../irfan')
+from OTXrag import OTX_Rag
 
 # Constants =========================================================
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -40,6 +45,9 @@ tokenizer, model = initialize_model()
 
 cve_rag = Cve_Rag(tokenizer, model)
 pen_test_rag = Pen_Test_Rag(tokenizer, model)
+otx_rag = OTX_Rag()
+malware_rag = Malware_Rag()
+
 
 # prompt specified model and rag
 # return response string and relevant chunks
@@ -58,7 +66,13 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
             messages, chunks = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case 'Pen-Testing':
-            messages, chunks, _ = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+            messages, chunks = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+
+        case 'Malware':
+            messages, chunks = malware_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+
+        case 'OTX-Rag':
+            messages, chunks = otx_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
             messages = default_messages(prompt, extra_context)
@@ -176,9 +190,15 @@ def default_messages(prompt: str, extra_context: str):
 
 # extract json object from string if present else return text passed as argument
 # required due to LLM's returning additional text in their responses
+# also remove any text after **Code Snippet**, since llama doesn't listen
 def extract_json_array_if_present(text: str) -> str:
     start_index = -1
     end_index = -1
+
+    # remove **Code Snippet** and any following text
+    code_snippet_index = text.find('**Code Snippet:**')
+    if code_snippet_index != -1:
+        text = text[:code_snippet_index]
 
     for i in range(len(text)):
         if text[i] == '[':
@@ -204,10 +224,16 @@ if __name__ == '__main__':
     # print("RES:::")
     # print(res["response"])
 
-    prompt_message = 'Find me a few DOS exploits that target android'
+    ##prompt_message = 'Find me a few DOS exploits that target android'
     # prompt_message = 'Find me an exploit that was created by Mark Schaefer'
-    res = prompt(prompt_message, 'Llama3', 'Pen-Testing', 5, '')
+    ##res = prompt(prompt_message, 'Llama3', 'Pen-Testing', 5, '')
     # res = prompt(prompt_message, 'Gemini', 'Pen-Testing', 5, '')
+
+    #prompt_message = 'What is this about 9d948a18acdd4d4ea3c1fbab2ea72de766e1434b208ed78ce000b81ece996874'
+    #res = prompt(prompt_message, 'Gemini', 'Malware', 5, '')
+
+    prompt_message = 'Can you give me IP addresses related to RDP intrusion attempt'
+    res = prompt(prompt_message, 'Gemini', 'OTX-Rag', 5, '')
 
     print("RES:::")
     print(res["response"])
