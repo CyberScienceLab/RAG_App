@@ -11,6 +11,8 @@ const prevPrompt = ref('')
 const res = ref([])
 const promptColor = ref('#000')
 
+// watch the prompt variable to update the datastore
+// whenever the state changes
 watch(prompt, (newValue) => {
   store.setPrompt(newValue)
 })
@@ -38,15 +40,17 @@ const handleRagRequest = () => {
     body: formData
   })
     .then((response) => {
+      prevModel.value = store.getModel()
+      prompt.value = ''
+      chunksDisplayed.value = false
+      promptColor.value = '#000'
+
       if (!response.ok) {
         throw new Error(`Non 200 status code! ${response.status}`)
       }
       return response.json()
     })
     .then((data) => {
-      prevModel.value = store.getModel()
-      prompt.value = ''
-      promptColor.value = '#000'
       chunks.value = data.chunks.filter((chunk) => chunk.length > 0)
 
       try {
@@ -84,10 +88,12 @@ const isEmpty = (value) => {
           {{ prevPrompt }}
         </div>
       </div>
+
       <div v-if="!isEmpty(res)" class="rag-prompt">
         <h3>
-          {{ prevModel }} --
+          {{ prevModel }}
           <a @click="flipChunksDisplayed" v-if="chunks !== null && chunks.length > 0">
+            --
             <span v-if="!chunksDisplayed">View Relevant Context</span>
             <span v-else>Hide Relevant Context</span>
           </a>
@@ -118,6 +124,7 @@ const isEmpty = (value) => {
         </div>
       </div>
     </div>
+
     <div class="prompt-area">
       <textarea
         v-model="prompt"
@@ -125,6 +132,7 @@ const isEmpty = (value) => {
         placeholder="Enter a prompt here"
         id="TextArea"
         :style="{ color: promptColor }"
+        spellcheck="false"
       ></textarea>
 
       <div class="submit-container">

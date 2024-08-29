@@ -103,7 +103,7 @@ onMounted(async () => {
         <label for="fileUpload">File Upload</label>
         <div class="input-wrapper">
           <!-- TODO: make this look nice -->
-          <input type="file" @change="handleFileChange" accept=".pdf,.txt" id="fileUpload" />
+          <input type="file" @change="handleFileChange" id="fileUpload" />
         </div>
       </div>
     </div>
