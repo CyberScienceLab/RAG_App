@@ -1,0 +1,11 @@
+torch
+flask
+flask_cors
+PyMuPDF
+
+# cve_rag dependencies
+torch
+numpy
+pandas
+sentence_transformers
+transformers

@@ -1,6 +1,3 @@
-# TODO: 
-# - make the requirements.txt
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
@@ -11,6 +8,9 @@ app = Flask(__name__)
 CORS(app) # TODO: maybe can remove this later, look into it
 
 
+# process request from UI to /promptRag
+# body contains prompt, model, rag type, # relevant context,
+#       and optional uploaded file
 @app.route('/promptRag', methods=['POST'])
 def prompt_rag():
     body = None
@@ -30,10 +30,7 @@ def prompt_rag():
     if file:
         filename = file.filename
 
-        if filename.lower().endswith('.txt'):
-            extra_context = file.read().decode('utf-8')
-
-        elif filename.lower().endswith('.pdf'):
+        if filename.lower().endswith('.pdf'):
             pdf_reader = fitz.open(stream=file.read(), filetype='pdf')
             pdf_str = ''
             for page_num in range(len(pdf_reader)):
@@ -42,13 +39,22 @@ def prompt_rag():
                 pdf_str += text
 
             extra_context = pdf_str
-
-        else:
-            return jsonify({'response': 'invalid file type passed'})
         
+        else:
+            try:
+                extra_context = file.read().decode('utf-8')
+
+            except: 
+                return jsonify({
+                    'response': 
+                    f'Error occurred while attempting to read {filename}'
+                    }), 500
+
 
     rag_config = body['ragConfig']
     rag_type = rag_config['ragTypes'][0] if len(rag_config['ragTypes']) > 0 else ''
+    # ===============================================================================
+    # everything above is just to setup the fields as rag.py is expecting them
 
     res = rag.prompt(body['prompt'], rag_config['model'], 
                      rag_type, rag_config['chunks'], extra_context)
@@ -56,8 +62,13 @@ def prompt_rag():
     return jsonify(res)
 
 
+# displays possible RAG models and rag types
+# any new models or RAGs added must be added below too
 @app.route('/retrieveRagConfig', methods=['GET'])
 def retrieve_rag_config_options():
+
+    # IMPORTANT! any new models or ragTypes must be added below
+    # as well as in rag.py prompt()
     return jsonify({
         "models": [
             "Llama3",

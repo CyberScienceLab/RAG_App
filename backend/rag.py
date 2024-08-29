@@ -11,6 +11,10 @@ from transformers.utils import logging
 logging.set_verbosity_error()
 
 # CSL Imports =======================================================
+
+# cve_rag was the first one setup, so we just moved it to this repository
+# we have it separate from the actual repository here, but the rest should
+# be done like pen_test_rag, malware_rag and otx_rag were done
 from cve_rag import Cve_Rag
 
 # must add the path to the project to use it directly as import
@@ -20,14 +24,23 @@ from pen_test_rag import Pen_Test_Rag
 sys.path.append('../../aeiyan/testingThings/Malware_Analysis_Rag')
 from mbTesting3 import Malware_Rag
 
-sys.path.append('../../irfan')
+sys.path.append('../../irfan/Threat_Intelligence_Rag')
 from OTXrag import OTX_Rag
 
 # Constants =========================================================
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
 SYSTEM_INDEX = 0
 USER_INDEX = 1
+
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if GOOGLE_API_KEY is None:
+    print(f'[ERROR] Missing env variable: GOOGLE_API_KEY')
+    exit(1)
+
+PEN_TEST_PROJ_PATH = os.getenv('PEN_TEST_PROJ_PATH')
+if PEN_TEST_PROJ_PATH is None:
+    print(f'[ERROR] Missing env variable: PEN_TEST_PROJ_PATH')
+    exit(1)
 # ===================================================================
 
 # initalize and return  llama3 tokenizer and model
@@ -43,8 +56,9 @@ def initialize_model():
 
 tokenizer, model = initialize_model()
 
+# initialize all rags here
 cve_rag = Cve_Rag(tokenizer, model)
-pen_test_rag = Pen_Test_Rag(tokenizer, model)
+pen_test_rag = Pen_Test_Rag(tokenizer, model, PEN_TEST_PROJ_PATH)
 otx_rag = OTX_Rag()
 malware_rag = Malware_Rag()
 
@@ -61,23 +75,28 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
 
     messages = []
     chunks = []
+
+    # IMPORTANT! any new rags added must be added both here and in 
+    #            server.py retrieve_rag_config_options()
     match rag_type:
         case 'CVE':
             messages, chunks = cve_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case 'Pen-Testing':
-            messages, chunks = pen_test_rag.get_messages_with_context(prompt, extra_context, num_chunks)
+            messages, chunks = pen_test_rag.get_messages_with_context(prompt, '' if extra_context == 'No File / extra context given.' else extra_context, num_chunks)
 
         case 'Malware':
             messages, chunks = malware_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
-        case 'OTX-Rag':
+        case 'Threat Intelligence':
             messages, chunks = otx_rag.get_messages_with_context(prompt, extra_context, num_chunks)
 
         case _:
             messages = default_messages(prompt, extra_context)
 
 
+    # IMPORTANT! any new models added must be added both here and in 
+    #            server.py retrieve_rag_config_options()
     match model:
         case  'Llama3':
             response = prompt_llama3(messages)
@@ -95,6 +114,7 @@ def prompt(prompt: str, model: str, rag_type: str, num_chunks: int, extra_contex
     }
 
 
+# prompt local llama3 version running with hugging face
 def prompt_llama3(messages: list[str]) -> str:
     input_ids = tokenizer.apply_chat_template(
         messages, 
@@ -104,7 +124,7 @@ def prompt_llama3(messages: list[str]) -> str:
 
     outputs = model.generate(
         input_ids, 
-        max_new_tokens=700, 
+        max_new_tokens=1024, 
         eos_token_id=tokenizer.eos_token_id, 
         do_sample=True, 
         temperature=0.2, 
@@ -120,11 +140,14 @@ def prompt_llama3(messages: list[str]) -> str:
     return response
 
 
+# prompt gemini api
 def prompt_gemini(messages: list[str]) -> str:
     # must use REST to communicate with Gemini LLM, the Python library
     # google.generativeai has dependency version issues that couldn't be resolved
 
     headers = { 'x-goog-api-key': GOOGLE_API_KEY }
+    # must use the safetySettings as BLOCK_NONE or else many responses
+    # won't be given back since it violates safety or another category
     body = {
         "system_instruction": {
             "parts": {
@@ -152,6 +175,8 @@ def prompt_gemini(messages: list[str]) -> str:
 
     if response.ok:
         try:
+            # need to retrieve nested text field from response json
+            # other fields don't matter to us
             res = (
                 response.json()
                     .get('candidates')[0]
@@ -173,6 +198,7 @@ def prompt_gemini(messages: list[str]) -> str:
     return err
 
 
+# default prompt to use if no rag type was selected
 def default_messages(prompt: str, extra_context: str):
     return [
         {
@@ -217,7 +243,7 @@ def extract_json_array_if_present(text: str) -> str:
 
 
 if __name__ == '__main__':
-    
+    print('rag.py')
     # prompt_message = 'Please provide me with some information on the following CVEs: CVE-2024-0008 and CVE-2024-0010'
     # res = prompt(prompt_message, 'Llama3', 'CVE', '5', '')
 
@@ -225,17 +251,19 @@ if __name__ == '__main__':
     # print(res["response"])
 
     ##prompt_message = 'Find me a few DOS exploits that target android'
-    # prompt_message = 'Find me an exploit that was created by Mark Schaefer'
-    ##res = prompt(prompt_message, 'Llama3', 'Pen-Testing', 5, '')
+    # prompt_message = 'Find me an exploit that was created by Metasploit'
+    # prompt_message = 'Give me some examples of DOS exploits that were published in 2018.'
+    # prompt_message = 'How do I break out of a Docker container?'
+    # res = prompt(prompt_message, 'Llama3', 'Pen-Testing', 5, '')
     # res = prompt(prompt_message, 'Gemini', 'Pen-Testing', 5, '')
 
     #prompt_message = 'What is this about 9d948a18acdd4d4ea3c1fbab2ea72de766e1434b208ed78ce000b81ece996874'
     #res = prompt(prompt_message, 'Gemini', 'Malware', 5, '')
 
-    prompt_message = 'Can you give me IP addresses related to RDP intrusion attempt'
-    res = prompt(prompt_message, 'Gemini', 'OTX-Rag', 5, '')
+    # prompt_message = 'Can you give me IP addresses related to RDP intrusion attempt'
+    # res = prompt(prompt_message, 'Gemini', 'OTX-Rag', 5, '')
 
-    print("RES:::")
-    print(res["response"])
+    # print("RES:::")
+    # print(res["response"])
     # print(res['chunks'])
     

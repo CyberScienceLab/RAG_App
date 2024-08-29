@@ -1,3 +1,8 @@
+# this project is the first Cyber Science Lab RAG implementation
+# it was modified from the original to work with our rag app setup
+# the original repository for the cve_rag exists in:
+# https://github.com/CyberScienceLab/RAG_LLM_CVE
+# ###############################################################
 import re
 import json 
 import torch
@@ -209,7 +214,7 @@ class Cve_Rag:
     def asking_llama_for_advice(self, cveDesp: str) -> str:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test3.csv'
+        csv_path = '../../aeiyan/testingThings/RAG_LLM_hallucinations/test6.csv'
 
         chunk_embeddings_df = pd.read_csv(csv_path)
 
