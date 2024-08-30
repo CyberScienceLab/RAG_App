@@ -18,13 +18,13 @@ logging.set_verbosity_error()
 from cve_rag import Cve_Rag
 
 # must add the path to the project to use it directly as import
-sys.path.append('../../mark/Penetration_Testing_Rag')
+sys.path.append('./Penetration_Testing_Rag')
 from pen_test_rag import Pen_Test_Rag
 
-sys.path.append('../../aeiyan/testingThings/Malware_Analysis_Rag')
+sys.path.append('./Malware_Analysis_Rag')
 from mbTesting3 import Malware_Rag
 
-sys.path.append('../../irfan/Threat_Intelligence_Rag')
+sys.path.append('./Threat_Intelligence_Rag')
 from OTXrag import OTX_Rag
 
 # Constants =========================================================
